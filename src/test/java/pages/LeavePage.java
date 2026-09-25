@@ -66,8 +66,8 @@ public class LeavePage extends BasePage {
 
     public void applyLeave(String leaveType, String fromDate, String toDate) {
         selectFromOxdDropdown(LEAVE_TYPE_DROPDOWN, leaveType);
-        type(FROM_DATE_INPUT, fromDate);
-        type(TO_DATE_INPUT, toDate);
+        typeDate(FROM_DATE_INPUT, fromDate);
+        typeDate(TO_DATE_INPUT, toDate);
         click(APPLY_BUTTON);
     }
 

@@ -155,8 +155,8 @@ public class AttendancePage extends BasePage {
     }
 
     public AttendancePage generateReport(String fromDate, String toDate) {
-        type(FROM_DATE_INPUT, fromDate);
-        type(TO_DATE_INPUT, toDate);
+        typeDate(FROM_DATE_INPUT, fromDate);
+        typeDate(TO_DATE_INPUT, toDate);
         click(GENERATE_BUTTON);
         return this;
     }

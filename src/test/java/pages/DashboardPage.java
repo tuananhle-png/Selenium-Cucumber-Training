@@ -80,4 +80,9 @@ public class DashboardPage extends BasePage {
         openModule("Admin");
         return new AdminPage(driver);
     }
+
+    public PimPage goToMyInfo() {
+        openModule("My Info");
+        return new PimPage(driver);
+    }
 }

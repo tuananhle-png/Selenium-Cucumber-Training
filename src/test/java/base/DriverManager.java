@@ -95,7 +95,14 @@ public final class DriverManager {
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--remote-allow-origins=*", "--window-size=1920,1080");
         if (headless) {
-            options.addArguments("--headless=new");
+            // Headless-only runs have shown sporadic "Timed out receiving
+            // message from renderer" / stale-node CDP errors under the new
+            // headless mode's software rendering path. --disable-gpu avoids
+            // that rendering pipeline; --disable-dev-shm-usage avoids
+            // /dev/shm-related renderer crashes; neither is needed (and
+            // --disable-gpu can hurt headed debugging) when a real window is
+            // visible, so both stay headless-only.
+            options.addArguments("--headless=new", "--disable-gpu", "--disable-dev-shm-usage");
         }
         return options;
     }

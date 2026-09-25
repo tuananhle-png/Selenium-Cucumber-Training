@@ -206,7 +206,7 @@ public class RecruitmentPage extends BasePage {
         }
         click(SCHEDULE_INTERVIEW_BUTTON);
         type(INTERVIEW_NAME_INPUT, candidateFullName + " Interview");
-        type(INTERVIEW_DATE_INPUT, date);
+        typeDate(INTERVIEW_DATE_INPUT, date);
         type(INTERVIEW_TIME_INPUT, time);
         selectFromOxdDropdown(INTERVIEWER_DROPDOWN, interviewer);
         click(SAVE_BUTTON);

@@ -22,6 +22,7 @@ public class PimPage extends BasePage {
 
     // Add Employee form
     private static final By FIRST_NAME_INPUT = By.name("firstName");
+    private static final By MIDDLE_NAME_INPUT = By.name("middleName");
     private static final By LAST_NAME_INPUT = By.name("lastName");
     private static final By EMPLOYEE_ID_INPUT = By.xpath("//label[text()='Employee Id']/../..//input");
     private static final By SAVE_BUTTON = By.xpath("//button[normalize-space()='Save']");
@@ -30,6 +31,7 @@ public class PimPage extends BasePage {
     // Report-to (supervisor assignment)
     private static final By ADD_SUPERVISOR_BUTTON = By.xpath("//*[normalize-space()='Assigned Supervisors']/following::button[contains(normalize-space(),'Add')][1]");
     private static final By SUPERVISOR_NAME_INPUT = By.xpath("//label[text()='Name']/../..//input");
+    private static final By REPORTING_METHOD_DROPDOWN = By.xpath("//label[text()='Reporting Method']/../..//div[contains(@class,'oxd-select-text--active')]");
     private static final By AUTOCOMPLETE_OPTIONS = By.xpath(
             "//div[contains(@class,'oxd-autocomplete-dropdown')]//div[contains(@class,'oxd-autocomplete-option')]");
 
@@ -133,6 +135,41 @@ public class PimPage extends BasePage {
     }
 
     /**
+     * Reads First/Middle/Last Name directly from the currently open
+     * Personal Details page (e.g. after DashboardPage.goToMyInfo()).
+     * Unlike the topbar's own display name — which is just first + last,
+     * silently dropping any middle name — this is the exact, complete name
+     * the app itself indexes for autocomplete searches like Report-to's
+     * supervisor picker. That gap matters here: this shared, never-reset
+     * demo accumulates many employees from other automated runs sharing
+     * the same generic first name (e.g. "Demo"), so searching on a
+     * first-name-only string that's missing its middle name falls through
+     * to an ambiguous match and silently assigns the wrong employee as
+     * supervisor instead of the one actually logged in.
+     */
+    public String getOwnFullName() {
+        // The form is visible (and its inputs structurally present) well
+        // before its async-fetched values actually populate them, so a
+        // plain read right after navigating here can catch it still blank
+        // — wait for the (always-required) First Name field specifically
+        // to actually hold a value before reading any of the three.
+        waitUntil(d -> {
+            String value = d.findElement(FIRST_NAME_INPUT).getAttribute("value");
+            return value != null && !value.isEmpty();
+        });
+        String first = driver.findElement(FIRST_NAME_INPUT).getAttribute("value").trim();
+        String middle = driver.findElements(MIDDLE_NAME_INPUT).stream()
+                .findFirst()
+                .map(e -> e.getAttribute("value"))
+                .orElse("")
+                .trim();
+        String last = driver.findElement(LAST_NAME_INPUT).getAttribute("value").trim();
+        return java.util.stream.Stream.of(first, middle, last)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.joining(" "));
+    }
+
+    /**
      * Assigns a supervisor via the employee's own Report-to page. Approval
      * authority over a leave request in this app is tied to being the
      * requester's supervisor, not simply having the Admin role — a
@@ -143,6 +180,14 @@ public class PimPage extends BasePage {
         driver.get(config.ConfigReader.get("base.url") + "/web/index.php/pim/viewReportToDetails/empNumber/" + empNumber);
         click(ADD_SUPERVISOR_BUTTON);
         selectFromOxdAutocomplete(SUPERVISOR_NAME_INPUT, AUTOCOMPLETE_OPTIONS, supervisorDisplayName);
+        // Reporting Method is a second required field on this same form,
+        // easy to miss since Name is the only one that looks essential —
+        // left at its "-- Select --" default, Save is silently a no-op (no
+        // toast, no error, no row added), which otherwise surfaces several
+        // steps downstream as a confusing "leave request row not found"
+        // once nothing (not even an Admin) turns out to have approval
+        // authority over it.
+        selectFromOxdDropdown(REPORTING_METHOD_DROPDOWN, "Direct");
         click(SAVE_BUTTON);
         // Save gives no other confirmation to wait on, and moving straight
         // to the approval flow's own search risks racing this assignment

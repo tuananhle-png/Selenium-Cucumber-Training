@@ -34,6 +34,21 @@ public class LeaveSteps {
         return dashboardPage.goToLeave();
     }
 
+    /**
+     * Re-clicking the "Leave" sidebar tab via leavePage() forces a fresh
+     * mount of whichever Leave sub-page is showing — harmless when
+     * navigating there from elsewhere, but it also silently resets the
+     * Apply Leave form (including clearing a just-triggered, front-end-only
+     * inline validation message like "To date should be after from date")
+     * if it's clicked again while already on that exact page. A step that
+     * asserts on the outcome of the Apply click immediately before it must
+     * reuse that same, not-re-navigated LeavePage instance instead.
+     */
+    private LeavePage currentLeavePage() {
+        LeavePage cached = context.get("currentLeavePage");
+        return cached != null ? cached : leavePage();
+    }
+
     @Given("the leave balance has been topped up")
     public void theLeaveBalanceHasBeenToppedUp() {
         // Individual-employee seeding, scoped to whoever is currently
@@ -54,7 +69,9 @@ public class LeaveSteps {
 
     @When("I apply for leave type {string} from {string} to {string}")
     public void iApplyForLeave(String leaveType, String fromDate, String toDate) {
-        leavePage().openApplyTab().applyLeave(leaveType, fromDate, toDate);
+        LeavePage page = leavePage().openApplyTab();
+        page.applyLeave(leaveType, fromDate, toDate);
+        context.put("currentLeavePage", page);
     }
 
     @When("I apply for leave type {string} from {string} to {string} for that employee")
@@ -67,17 +84,17 @@ public class LeaveSteps {
 
     @Then("the leave request should be submitted successfully")
     public void theLeaveRequestShouldBeSubmittedSuccessfully() {
-        Assertions.assertThat(leavePage().isSubmissionSuccessful()).isTrue();
+        Assertions.assertThat(currentLeavePage().isSubmissionSuccessful()).isTrue();
     }
 
     @Then("I should see a date range validation error")
     public void iShouldSeeADateRangeValidationError() {
-        Assertions.assertThat(leavePage().isDateRangeErrorShown()).isTrue();
+        Assertions.assertThat(currentLeavePage().isDateRangeErrorShown()).isTrue();
     }
 
     @Then("the leave request should not be submitted")
     public void theLeaveRequestShouldNotBeSubmitted() {
-        Assertions.assertThat(leavePage().isDateRangeErrorShown()).isTrue();
+        Assertions.assertThat(currentLeavePage().isDateRangeErrorShown()).isTrue();
     }
 
     @Given("the {string} leave balance is set to {int} days")
@@ -93,16 +110,19 @@ public class LeaveSteps {
     public void iApplyForLeaveSpanning(String leaveType, int days) {
         LocalDate from = LocalDate.now().plusDays(30);
         LocalDate to = from.plusDays(Math.max(days - 1, 0));
-        leavePage().openApplyTab().applyLeave(leaveType, from.toString(), to.toString());
+        LeavePage page = leavePage().openApplyTab();
+        page.applyLeave(leaveType, from.toString(), to.toString());
+        context.put("currentLeavePage", page);
         context.put("requestedDays", days);
     }
 
     @Then("the leave application should {string}")
     public void theLeaveApplicationShould(String expectedOutcome) {
         if (expectedOutcome.equals("be allowed")) {
-            Assertions.assertThat(leavePage().isDateRangeErrorShown()).isFalse();
+            Assertions.assertThat(currentLeavePage().isDateRangeErrorShown()).isFalse();
         } else {
-            boolean blockedOrToast = leavePage().isDateRangeErrorShown() || leavePage().isSubmissionSuccessful();
+            LeavePage page = currentLeavePage();
+            boolean blockedOrToast = page.isDateRangeErrorShown() || page.isSubmissionSuccessful();
             Assertions.assertThat(blockedOrToast).isTrue();
         }
     }
@@ -180,7 +200,7 @@ public class LeaveSteps {
         DashboardPage adminDashboard2 = loginPage2.loginAs("Admin", "admin123");
         context.put("dashboardPage", adminDashboard2);
 
-        String supervisorName = adminDashboard2.getCurrentUserDisplayName();
+        String supervisorName = adminDashboard2.goToMyInfo().getOwnFullName();
         pimPage.assignSupervisor(empNumber, supervisorName);
 
         context.put("pendingRequestIdentifier", lastName);

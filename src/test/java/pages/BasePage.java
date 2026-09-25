@@ -13,6 +13,8 @@ import org.openqa.selenium.support.ui.FluentWait;
 import org.openqa.selenium.support.ui.Wait;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Function;
 
@@ -43,12 +45,30 @@ public abstract class BasePage {
         return wait.until(ExpectedConditions.visibilityOfAllElementsLocatedBy(locator));
     }
 
+    /**
+     * waitVisible()'s own FluentWait already tolerates a stale element while
+     * it's still searching, but the element it hands back can itself go
+     * stale in the gap between that search returning and this method's own
+     * .isDisplayed() call on it (the page re-rendering the exact instant a
+     * caller here loses that race) — an uncaught
+     * StaleElementReferenceException from .isDisplayed() itself, rather
+     * than a TimeoutException, isn't a shape this method originally
+     * anticipated. One retry (a fresh waitVisible() re-locates the element
+     * rather than reusing the now-stale reference) covers that race the
+     * same way callers already expect a transient miss to resolve to
+     * false, not an exception.
+     */
     protected boolean isVisible(By locator) {
-        try {
-            return waitVisible(locator).isDisplayed();
-        } catch (org.openqa.selenium.TimeoutException e) {
-            return false;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                return waitVisible(locator).isDisplayed();
+            } catch (org.openqa.selenium.TimeoutException e) {
+                return false;
+            } catch (org.openqa.selenium.StaleElementReferenceException e) {
+                // retry once with a freshly re-located element
+            }
         }
+        return false;
     }
 
     /**
@@ -88,6 +108,38 @@ public abstract class BasePage {
             element.sendKeys(text);
             return text.equals(element.getAttribute("value"));
         });
+    }
+
+    /**
+     * This shared public demo's date fields are custom masked inputs whose
+     * expected format follows whatever this instance's Admin > Configuration
+     * > Localization date format is currently set to — not necessarily
+     * yyyy-MM-dd. That setting is global and can drift on a shared,
+     * never-reset demo (observed live as "yyyy-dd-mm"), silently
+     * misinterpreting a plain yyyy-MM-dd string (e.g. reading "2026-10-05"
+     * as day=10, month=05) without any visible error, since the typed text
+     * still matches the field's own value attribute either way. Reading the
+     * field's placeholder (which mirrors the active format, e.g.
+     * "yyyy-dd-mm") and formatting the intended date to match it keeps
+     * every caller's date correct regardless of which format is live.
+     */
+    protected void typeDate(By locator, String isoDate) {
+        if (isoDate == null || isoDate.isEmpty()) {
+            type(locator, isoDate);
+            return;
+        }
+        LocalDate date = LocalDate.parse(isoDate);
+        String placeholder = waitVisible(locator).getAttribute("placeholder");
+        String formatted = isoDate;
+        if (placeholder != null && !placeholder.isBlank()) {
+            String pattern = placeholder.replaceAll("(?i)dd", "dd").replaceAll("(?i)mm", "MM");
+            try {
+                formatted = DateTimeFormatter.ofPattern(pattern).format(date);
+            } catch (RuntimeException e) {
+                formatted = isoDate;
+            }
+        }
+        type(locator, formatted);
     }
 
     protected String getText(By locator) {
