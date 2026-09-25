@@ -1,0 +1,11 @@
+target/
+.idea/
+*.iml
+.vscode/
+allure-results/
+allure-report/
+test-output/
+*.log
+.DS_Store
+.allure/
+.claude/scheduled_tasks.lock

@@ -1,0 +1,2 @@
+This is a plain text file used to verify that the PIM profile photo
+upload rejects unsupported file types (TC-PIM-09).
